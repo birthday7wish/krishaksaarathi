@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KrishakSaarathi - App</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <style>
+        :root {
+            /* Color Palette */
+            --bg: #F8FBF5;
+            --primary: #176B45;
+            --secondary: #DDEFE4;
+            --accent: #65B879;
+            --card-bg: #FFFFFF;
+            
+            --text-main: #1A2F24;
+            --text-muted: #6B8072;
+            
+            /* UI Elements */
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+            --shadow: 0 12px 32px rgba(23, 107, 69, 0.08);
+            --shadow-sm: 0 4px 12px rgba(23, 107, 69, 0.04);
+            
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Mobile App Container */
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--bg);
+            position: relative;
+            min-height: 100vh;
+            padding-bottom: 90px; /* Space for bottom nav */
+            box-shadow: 0 0 40px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        /* --- Header --- */
+        header {
+            padding: 24px 20px 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 10;
+        }
+        .header-left .brand-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .animated-leaf { width: 18px; height: 18px; fill: var(--accent); animation: sway 3s ease-in-out infinite; transform-origin: bottom center; }
+        .header-left .subtitle { font-size: 11px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.5px; }
+        
+        .header-right { display: flex; gap: 12px; }
+        .icon-btn {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: var(--card-bg); box-shadow: var(--shadow-sm);
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: var(--transition); border: none;
+        }
+        .icon-btn:hover { background: var(--secondary); }
+        .icon-btn svg { width: 20px; height: 20px; fill: var(--primary); }
+        
+        #bleConnectBtn { position: relative; }
+        .ble-indicator { position: absolute; top: 0; right: 0; width: 10px; height: 10px; background: #FF4C4C; border-radius: 50%; border: 2px solid white; transition: background 0.3s; }
+        .ble-indicator.connected { background: var(--accent); }
+
+        /* --- Views System --- */
+        .view { display: none; padding: 15px 20px; animation: fadeIn 0.4s ease; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- Farm Health Card --- */
+        .health-card {
+            background: var(--card-bg);
+            border-radius: var(--radius-xl);
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+        /* Moving leaf particles background */
+        .particle-bg { position: absolute; top:0; left:0; width:100%; height:100%; opacity:0.3; z-index:0; pointer-events: none;}
+        .health-card > * { position: relative; z-index: 1; }
+        
+        .health-title { font-size: 14px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
+        
+        .health-ring-container { position: relative; width: 140px; height: 140px; margin: 0 auto; }
+        .health-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .health-ring circle { fill: none; stroke-width: 8; stroke-linecap: round; }
+        .ring-bg { stroke: var(--secondary); }
+        .ring-progress { stroke: var(--primary); stroke-dasharray: 377; stroke-dashoffset: 30; transition: stroke-dashoffset 1.5s ease-out; }
+        
+        .health-content {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .health-content svg { width: 28px; height: 28px; fill: var(--accent); margin-bottom: 4px; }
+        .health-score { font-size: 28px; font-weight: 800; color: var(--primary); }
+        .health-status { font-size: 13px; color: var(--accent); font-weight: 600; margin-top: 15px; }
+
+        /* --- Live Sensors Grid --- */
+        .sensors-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+        .sensor-card {
+            background: var(--card-bg); border-radius: var(--radius-lg);
+            padding: 20px 15px; box-shadow: var(--shadow);
+            display: flex; flex-direction: column; align-items: flex-start;
+            position: relative; overflow: hidden;
+        }
+        .sensor-card.full-width { grid-column: span 2; flex-direction: row; align-items: center; justify-content: space-between; }
+        
+        .sensor-icon-wrapper {
+            width: 42px; height: 42px; border-radius: 12px;
+            background: var(--secondary); display: flex; align-items: center; justify-content: center;
+            margin-bottom: 12px;
+        }
+        .sensor-icon-wrapper svg { width: 22px; height: 22px; fill: var(--primary); }
+        
+        .sensor-val { font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 4px; display: flex; align-items: baseline; gap: 2px; }
+        .sensor-unit { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+        .sensor-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+        .sensor-status { font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 8px; margin-top: 8px; }
+        .status-normal { background: var(--secondary); color: var(--primary); }
+        .status-alert { background: #ffebeb; color: #d63031; }
+
+        /* Icon Animations */
+        @keyframes heatwave { 0%, 100% { transform: translateY(0); opacity: 0.8; } 50% { transform: translateY(-3px); opacity: 1; } }
+        .anim-temp { animation: heatwave 2s ease-in-out infinite; }
+        
+        @keyframes waterdrop { 0% { transform: translateY(-2px) scale(0.9); } 50% { transform: translateY(2px) scale(1.1); } 100% { transform: translateY(-2px) scale(0.9); } }
+        .anim-drop { animation: waterdrop 2.5s ease-in-out infinite; }
+        
+        @keyframes radarPulse { 0% { box-shadow: 0 0 0 0 rgba(23, 107, 69, 0.4); } 100% { box-shadow: 0 0 0 15px rgba(23, 107, 69, 0); } }
+        .anim-radar { border-radius: 50%; animation: radarPulse 2s infinite; }
+
+        /* --- AI Leaf Doctor Section --- */
+        .doctor-card {
+            background: linear-gradient(145deg, var(--primary), var(--dark-green, #104e32));
+            border-radius: var(--radius-xl);
+            padding: 30px 20px; text-align: center; color: white;
+            box-shadow: 0 15px 35px rgba(23, 107, 69, 0.25);
+            position: relative; overflow: hidden;
+            margin-bottom: 25px;
+        }
+        .leaf-bg-icon { position: absolute; right: -20px; top: -20px; width: 120px; height: 120px; fill: white; opacity: 0.05; transform: rotate(15deg); pointer-events: none; }
+        .doctor-card h2 { font-size: 22px; margin-bottom: 6px; }
+        .doctor-card p { font-size: 13px; color: var(--secondary); margin-bottom: 20px; opacity: 0.9; }
+        
+        .primary-btn {
+            background: white; color: var(--primary); border: none;
+            padding: 14px 28px; border-radius: 30px; font-size: 15px; font-weight: 700;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1); transition: var(--transition);
+            width: 100%; justify-content: center;
+        }
+        .primary-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 25px rgba(0,0,0,0.15); }
+        .primary-btn svg { width: 18px; height: 18px; fill: var(--primary); }
+
+        /* Leaf Scanner UI */
+        .upload-area { border: 2px dashed var(--accent); border-radius: var(--radius-lg); padding: 40px 20px; background: rgba(101, 184, 121, 0.05); cursor: pointer; position: relative; overflow: hidden; transition: var(--transition); text-align: center; margin-top: 20px; }
+        .upload-area input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .upload-area svg { width: 40px; height: 40px; fill: var(--primary); margin-bottom: 10px; }
+        
+        .scan-preview-container { position: relative; display: none; margin: 20px auto; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow); max-width: 300px; }
+        #previewImage { width: 100%; display: block; object-fit: cover; }
+        
+        /* Glowing Scanner Line */
+        .scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: var(--accent); box-shadow: 0 0 15px 4px var(--accent); display: none; z-index: 2; }
+        @keyframes scanDown { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        .scan-line.active { display: block; animation: scanDown 2s infinite linear; }
+        
+        .scan-loading { display: none; color: var(--primary); font-weight: 600; margin: 15px 0; text-align: center;}
+        
+        #aiResult { margin-top: 20px; padding: 20px; border-radius: var(--radius-lg); display: none; text-align: left; }
+        .result-safe { background: var(--secondary); border: 1px solid var(--accent); }
+        .result-danger { background: #fff0f0; border: 1px solid #ffb3b3; }
+        .res-title { font-size: 18px; font-weight: 700; margin-bottom: 5px; color: var(--text-main); }
+        .res-conf { font-size: 13px; font-weight: 600; margin-bottom: 15px; }
+        .result-safe .res-conf { color: var(--primary); }
+        .result-danger .res-conf { color: #d63031; }
+        .res-details { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+        .res-details hr { border: none; border-top: 1px solid rgba(0,0,0,0.1); margin: 10px 0; }
+
+        /* --- Insights View --- */
+        .insights-section { background: var(--card-bg); border-radius: var(--radius-xl); padding: 25px 20px; box-shadow: var(--shadow); }
+        .insights-section h3 { font-size: 16px; color: var(--primary); margin-bottom: 20px; }
+        .insight-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+        .insight-label { font-size: 14px; font-weight: 500; color: var(--text-muted); flex: 1; }
+        .insight-line { flex: 2; border-bottom: 1px dashed var(--secondary); margin: 0 10px; opacity: 0.5; }
+        .insight-value { font-size: 14px; font-weight: 700; color: var(--text-main); }
+        
+        /* --- Chat View --- */
+        .chat-container { display: flex; flex-direction: column; height: calc(100vh - 180px); background: var(--card-bg); border-radius: var(--radius-xl); box-shadow: var(--shadow); overflow: hidden; }
+        .chat-header { background: var(--secondary); padding: 15px 20px; display: flex; align-items: center; gap: 12px; }
+        .chat-avatar { width: 40px; height: 40px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .chat-avatar svg { width: 22px; height: 22px; fill: white; animation: sway 4s infinite; }
+        .chat-header-text h3 { font-size: 15px; color: var(--primary); }
+        .chat-header-text p { font-size: 11px; color: var(--text-muted); }
+        
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .bubble { max-width: 85%; padding: 12px 16px; border-radius: 18px; font-size: 14px; line-height: 1.5; position: relative; }
+        .bubble.bot { align-self: flex-start; background: var(--bg); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--secondary); }
+        .bubble.user { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+        
+        .chat-suggestions { padding: 10px 15px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; background: #fff; }
+        .chat-suggestions::-webkit-scrollbar { display: none; }
+        .chat-chip { white-space: nowrap; padding: 8px 14px; background: var(--secondary); color: var(--primary); border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .chat-chip:hover { background: var(--accent); color: white; }
+        
+        .chat-input-area { padding: 15px; background: #fff; border-top: 1px solid var(--secondary); display: flex; gap: 10px; }
+        .chat-input-area input { flex: 1; border: 1px solid var(--secondary); background: var(--bg); border-radius: 24px; padding: 0 16px; font-size: 14px; font-family: inherit; outline: none; transition: border 0.3s; }
+        .chat-input-area input:focus { border-color: var(--primary); }
+        .chat-send-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--primary); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+        .chat-send-btn svg { width: 18px; height: 18px; fill: white; margin-left: 3px; }
+
+        /* --- Bottom Navigation --- */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: 480px; background: var(--card-bg);
+            display: flex; justify-content: space-around; padding: 10px 10px 25px 10px;
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.03); z-index: 100;
+            border-top-left-radius: 20px; border-top-right-radius: 20px;
+        }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: var(--transition);
+            color: var(--text-muted);
+        }
+        .nav-item svg { width: 22px; height: 22px; fill: currentColor; transition: var(--transition); }
+        .nav-label { font-size: 11px; font-weight: 600; transition: var(--transition); }
+        
+        .nav-item.active { background: var(--secondary); color: var(--primary); }
+        .nav-item.active svg { transform: translateY(-2px); }
+
+        @keyframes sway { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(15deg); } }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <header>
+        <div class="header-left">
+            <div class="brand-title">
+                KrishakSaarathi
+                <svg class="animated-leaf" viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,14 7,14C10,9 15,9.5 17,8Z"/></svg>
+            </div>
+            <div class="subtitle">Your intelligent farming companion</div>
+        </div>
+        <div class="header-right">
+            <button class="icon-btn" id="bleConnectBtn" title="Connect Field Node">
+                <div class="ble-indicator" id="bleIndicator"></div>
+                <svg viewBox="0 0 24 24"><path d="M17.71,7.71L12,2V11.58L6.41,6L5,7.41L10.59,13L5,18.59L6.41,20L12,14.41V24L17.71,18.29L13.41,14L17.71,9.71V7.71M14,5.83L15.88,7.71L14,9.58V5.83M15.88,18.29L14,20.17V16.42L15.88,18.29Z" /></svg>
+            </button>
+            <button class="icon-btn" title="Profile"><svg viewBox="0 0 24 24"><path d="M12 4A4 4 0 1 1 8 8A4 4 0 0 1 12 4M12 14C16.42 14 20 15.79 20 18V20H4V18C4 15.79 7.58 14 12 14Z"/></svg></button>
+        </div>
+    </header>
+
+    <main id="view-home" class="view active">
+        
+        <div class="health-card">
+            <svg class="particle-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <circle cx="20" cy="30" r="2" fill="var(--accent)"><animate attributeName="cy" values="30;10;30" dur="5s" repeatCount="indefinite"/></circle>
+                <circle cx="80" cy="70" r="1.5" fill="var(--primary)"><animate attributeName="cy" values="70;90;70" dur="4s" repeatCount="indefinite"/></circle>
+                <circle cx="50" cy="15" r="3" fill="var(--secondary)"><animate attributeName="cy" values="15;35;15" dur="6s" repeatCount="indefinite"/></circle>
+            </svg>
+
+            <div class="health-title">Farm Health</div>
+            <div class="health-ring-container">
+                <svg class="health-ring" viewBox="0 0 120 120">
+                    <circle class="ring-bg" cx="60" cy="60" r="54"></circle>
+                    <circle class="ring-progress" id="healthRing" cx="60" cy="60" r="54" stroke-dashoffset="339"></circle>
+                </svg>
+                <div class="health-content">
+                    <svg viewBox="0 0 24 24"><path d="M12,21L10.5,19.5C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.5,19.5L12,21Z"/></svg>
+                    <div class="health-score" id="healthScore">--%</div>
+                </div>
+            </div>
+            <div class="health-status">System Standing By</div>
+        </div>
+
+        <div class="sensors-grid">
+            <div class="sensor-card">
+                <div class="sensor-icon-wrapper anim-temp">
+                    <svg viewBox="0 0 24 24"><path d="M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z"/></svg>
+                </div>
+                <div class="sensor-val"><span id="tempVal" class="count-up">--</span><span class="sensor-unit">°C</span></div>
+                <div class="sensor-label">Temperature</div>
+                <div class="sensor-status status-normal">Normal</div>
+            </div>
+            
+            <div class="sensor-card">
+                <div class="sensor-icon-wrapper anim-drop">
+                    <svg viewBox="0 0 24 24"><path d="M12 20A6 6 0 0 1 6 14C6 10 12 3.25 12 3.25S18 10 18 14A6 6 0 0 1 12 20Z"/></svg>
+                </div>
+                <div class="sensor-val"><span id="humVal" class="count-up">--</span><span class="sensor-unit">%</span></div>
+                <div class="sensor-label">Humidity</div>
+                <div class="sensor-status status-normal">Optimal</div>
+            </div>
+            
+            <div class="sensor-card full-width">
+                <div>
+                    <div class="sensor-label" style="margin-bottom: 5px;">Field Activity Radar</div>
+                    <div class="sensor-val" id="motVal" style="font-size: 18px;">Secure</div>
+                    <div class="sensor-status status-normal" id="motStatus" style="display: inline-block;">No Activity</div>
+                </div>
+                <div class="sensor-icon-wrapper" id="motIconWrapper" style="margin:0;">
+                    <svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z"/></svg>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <main id="view-insights" class="view">
+        <h2 style="font-size: 22px; color: var(--primary); margin-bottom: 20px;">Analytics</h2>
+        <div class="insights-section">
+            <h3>Today's Farm Insights</h3>
+            <div class="insight-row">
+                <span class="insight-label">Avg Temperature</span>
+                <span class="insight-line"></span>
+                <span class="insight-value" id="insTemp">--°C</span>
+            </div>
+            <div class="insight-row">
+                <span class="insight-label">Avg Humidity</span>
+                <span class="insight-line"></span>
+                <span class="insight-value" id="insHum">--%</span>
+            </div>
+            <div class="insight-row">
+                <span class="insight-label">Activity Events</span>
+                <span class="insight-line"></span>
+                <span class="insight-value" id="insMot">0</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 20px; font-style: italic;">Insights will populate when the field node is connected for a longer period.</p>
+        </div>
+    </main>
+
+    <main id="view-doctor" class="view">
+        <div class="doctor-card">
+            <svg class="leaf-bg-icon" viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,14 7,14C10,9 15,9.5 17,8Z"/></svg>
+            <h2>AI Leaf Doctor</h2>
+            <p>Detect plant diseases instantly</p>
+            <button class="primary-btn" onclick="document.getElementById('leafInput').click()">
+                <svg viewBox="0 0 24 24"><path d="M4,4H20V20H4V4M6,6V18H18V6H6M13.5,11.5L16.5,15.5H7.5L10.5,11.5L12,13.5L13.5,11.5Z"/></svg>
+                Select Leaf Image
+            </button>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <svg viewBox="0 0 24 24"><path d="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z"/></svg>
+            <div style="font-weight: 600; color: var(--primary);">Tap to upload or use camera</div>
+            <input type="file" accept="image/*" capture="environment" id="leafInput">
+        </div>
+
+        <div class="scan-preview-container" id="previewContainer">
+            <img id="previewImage" crossorigin="anonymous">
+            <div class="scan-line" id="scanLine"></div>
+        </div>
+
+        <div class="scan-loading" id="scanLoading">Analyzing cellular structure...</div>
+
+        <div id="aiResult"></div>
+    </main>
+
+    <main id="view-chat" class="view">
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="chat-avatar">
+                    <svg viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,14 7,14C10,9 15,9.5 17,8Z"/></svg>
+                </div>
+                <div class="chat-header-text">
+                    <h3>Krishak AI</h3>
+                    <p>Always online</p>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="bubble bot">Namaste! I am Krishak AI. Ask me anything about crop diseases, irrigation, or organic fertilizers.</div>
+            </div>
+
+            <div class="chat-suggestions">
+                <div class="chat-chip" onclick="askChat('Why are my leaves yellow?')">🌱 Yellow leaves?</div>
+                <div class="chat-chip" onclick="askChat('How much water for tomatoes?')">💧 Watering Guide</div>
+                <div class="chat-chip" onclick="askChat('Organic pest control')">🐛 Pest Control</div>
+            </div>
+
+            <form class="chat-input-area" onsubmit="event.preventDefault(); sendChatMessage();">
+                <input type="text" id="chatInput" placeholder="Ask Krishak AI..." autocomplete="off">
+                <button type="submit" class="chat-send-btn">
+                    <svg viewBox="0 0 24 24"><path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/></svg>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="switchView('home', this)">
+            <svg viewBox="0 0 24 24"><path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>
+            <span class="nav-label">Home</span>
+        </div>
+        <div class="nav-item" onclick="switchView('insights', this)">
+            <svg viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg>
+            <span class="nav-label">Insights</span>
+        </div>
+        <div class="nav-item" onclick="switchView('doctor', this)">
+            <svg viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,14 7,14C10,9 15,9.5 17,8Z"/></svg>
+            <span class="nav-label">Doctor</span>
+        </div>
+        <div class="nav-item" onclick="switchView('chat', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12C2 13.85 2.5 15.58 3.38 17.06L2 22L7.08 20.66C8.54 21.5 10.22 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2M8 11V13H16V11H8M8 7V9H16V7H8M8 15V17H13V15H8Z"/></svg>
+            <span class="nav-label">Chat</span>
+        </div>
+    </nav>
+
+</div>
+
+<script>
+    /* =========================================
+       1. NAVIGATION & SPA LOGIC
+       ========================================= */
+    function switchView(viewId, element) {
+        // Hide all views
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        // Remove active class from all nav items
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        
+        // Show target view & set active nav
+        document.getElementById(`view-${viewId}`).classList.add('active');
+        element.classList.add('active');
+        window.scrollTo(0,0);
+    }
+
+    /* Animation Helper: Count Up Number */
+    function animateValue(obj, start, end, duration) {
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            obj.innerHTML = (progress * (end - start) + start).toFixed(1);
+            if (progress < 1) { window.requestAnimationFrame(step); }
+        };
+        window.requestAnimationFrame(step);
+    }
+
+    /* =========================================
+       2. BLUETOOTH ESP32 SENSORS LOGIC 
+       ========================================= */
+    const connectBtn = document.getElementById('bleConnectBtn');
+    const bleIndicator = document.getElementById('bleIndicator');
+    const tempVal = document.getElementById('tempVal');
+    const humVal = document.getElementById('humVal');
+    const motVal = document.getElementById('motVal');
+    const motStatus = document.getElementById('motStatus');
+    const motIconWrapper = document.getElementById('motIconWrapper');
+    
+    // Insights tracking
+    let eventCount = 0;
+    
+    // Farm Health Ring Math (Max 339)
+    const healthRing = document.getElementById('healthRing');
+    const healthScore = document.getElementById('healthScore');
+
+    function updateHealthScore(t, h) {
+        // Simple synthetic health calculation for UI demonstration
+        let score = 100;
+        if(t > 35 || t < 10) score -= 20;
+        if(h < 40) score -= 15;
+        
+        score = Math.max(0, score);
+        
+        animateValue(healthScore, parseInt(healthScore.innerText)||0, score, 1000);
+        
+        // Calculate stroke offset based on percentage (339 is full empty)
+        const offset = 339 - (score / 100) * 339;
+        healthRing.style.strokeDashoffset = offset;
+    }
+
+    const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+    const characteristicUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+
+    connectBtn.addEventListener('click', async () => {
+        try {
+            const device = await navigator.bluetooth.requestDevice({ filters: [{ name: 'KrishakSaarathi_BLE' }], optionalServices: [serviceUuid] });
+            
+            device.addEventListener('gattserverdisconnected', () => {
+                bleIndicator.classList.remove('connected');
+                document.querySelector('.health-status').innerText = "System Offline";
+            });
+
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(serviceUuid);
+            const characteristic = await service.getCharacteristic(characteristicUuid);
+            
+            bleIndicator.classList.add('connected');
+            document.querySelector('.health-status').innerText = "Sensors Active";
+            
+            // Set initial health
+            updateHealthScore(25, 60); 
+
+            await characteristic.startNotifications();
+            characteristic.addEventListener('characteristicvaluechanged', (e) => {
+                const data = JSON.parse(new TextDecoder('utf-8').decode(e.target.value));
+                
+                // Animate Numbers
+                animateValue(tempVal, parseFloat(tempVal.innerText)||0, data.t, 500);
+                animateValue(humVal, parseFloat(humVal.innerText)||0, data.h, 500);
+                
+                document.getElementById('insTemp').innerText = data.t.toFixed(1) + '°C';
+                document.getElementById('insHum').innerText = data.h.toFixed(1) + '%';
+                
+                updateHealthScore(data.t, data.h);
+
+                // Motion Logic
+                if(data.m === 1) {
+                    motVal.innerText = "Detected";
+                    motVal.style.color = "#d63031";
+                    motStatus.innerText = "Activity Nearby";
+                    motStatus.className = "sensor-status status-alert";
+                    motIconWrapper.classList.add('anim-radar');
+                    
+                    eventCount++;
+                    document.getElementById('insMot').innerText = eventCount;
+                } else {
+                    motVal.innerText = "Secure";
+                    motVal.style.color = "var(--primary)";
+                    motStatus.innerText = "No Activity";
+                    motStatus.className = "sensor-status status-normal";
+                    motIconWrapper.classList.remove('anim-radar');
+                }
+            });
+        } catch (error) { console.error("Bluetooth Cancelled", error); }
+    });
+
+    /* =========================================
+       3. TENSORFLOW.JS LEAF SCANNER LOGIC 
+       ========================================= */
+    // 🛑 IMPORTANT: PASTE YOUR TEACHABLE MACHINE LINK HERE 🛑
+    const TF_MODEL_URL = "YOUR_TEACHABLE_MACHINE_LINK_HERE/";
+    
+    let tfModel, maxPredictions;
+    const leafInput = document.getElementById('leafInput');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImage = document.getElementById('previewImage');
+    const uploadArea = document.getElementById('uploadArea');
+    const scanLine = document.getElementById('scanLine');
+    const scanLoading = document.getElementById('scanLoading');
+    const aiResult = document.getElementById('aiResult');
+
+    async function initTFModel() {
+        try {
+            tfModel = await tmImage.load(TF_MODEL_URL + "model.json", TF_MODEL_URL + "metadata.json");
+            maxPredictions = tfModel.getTotalClasses();
+        } catch (err) { console.error("TF Model Load Error. Add valid URL."); }
+    }
+    initTFModel();
+
+    leafInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                previewImage.src = event.target.result;
+                uploadArea.style.display = 'none';
+                previewContainer.style.display = 'block';
+                aiResult.style.display = 'none';
+                
+                // Start Fake Scan Animation
+                scanLine.classList.add('active');
+                scanLoading.style.display = 'block';
+                
+                // Wait for image to render, then predict
+                setTimeout(runPrediction, 2500); 
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    async function runPrediction() {
+        if(!tfModel) {
+            scanLoading.innerText = "Error: AI Model missing.";
+            scanLine.classList.remove('active');
+            return;
+        }
+
+        const prediction = await tfModel.predict(previewImage);
+        let bestClass = "";
+        let highestProb = 0;
+        
+        for (let i = 0; i < maxPredictions; i++) {
+            if (prediction[i].probability > highestProb) {
+                highestProb = prediction[i].probability;
+                bestClass = prediction[i].className;
+            }
+        }
+
+        const confidence = (highestProb * 100).toFixed(1);
+        
+        scanLine.classList.remove('active');
+        scanLoading.style.display = 'none';
+        aiResult.style.display = 'block';
+        
+        aiResult.className = '';
+        if (bestClass.toLowerCase().includes("healthy")) {
+            aiResult.classList.add('result-safe');
+            aiResult.innerHTML = `
+                <div class="res-title">✅ ${bestClass}</div>
+                <div class="res-conf">${confidence}% Match</div>
+                <div class="res-details">
+                    <hr>Your plant looks great! Maintain current watering and fertilization schedules.
+                </div>
+                <button class="primary-btn" style="margin-top:15px;" onclick="resetScanner()">Scan Another</button>
+            `;
+        } else {
+            aiResult.classList.add('result-danger');
+            aiResult.innerHTML = `
+                <div class="res-title">⚠️ ${bestClass}</div>
+                <div class="res-conf">${confidence}% Confidence</div>
+                <div class="res-details">
+                    <hr><strong>Recommendation:</strong> Isolate affected plants. Avoid overhead watering and consider applying organic fungicide.
+                </div>
+                <button class="primary-btn" style="margin-top:15px; background:var(--primary); color:white;" onclick="resetScanner()">Scan Another</button>
+            `;
+        }
+    }
+    
+    function resetScanner() {
+        leafInput.value = '';
+        previewContainer.style.display = 'none';
+        uploadArea.style.display = 'block';
+        aiResult.style.display = 'none';
+    }
+
+    /* =========================================
+       4. HUGGING FACE AI CHAT LOGIC 
+       ========================================= */
+    // 🛑 IMPORTANT: PASTE YOUR HUGGING FACE TOKEN HERE 🛑
+    const HF_TOKEN = "YOUR_HUGGINGFACE_TOKEN_HERE";
+    
+    const chatInput = document.getElementById('chatInput');
+    const chatMessages = document.getElementById('chatMessages');
+
+    function askChat(text) {
+        chatInput.value = text;
+        sendChatMessage();
+    }
+
+    function appendBubble(sender, text) {
+        const b = document.createElement('div');
+        b.className = `bubble ${sender}`;
+        b.innerHTML = text;
+        chatMessages.appendChild(b);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function sendChatMessage() {
+        const query = chatInput.value.trim();
+        if(!query) return;
+
+        appendBubble('user', query);
+        chatInput.value = '';
+
+        const typing = document.createElement('div');
+        typing.className = 'bubble bot';
+        typing.innerText = 'Thinking...';
+        chatMessages.appendChild(typing);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        try {
+            const res = await fetch("https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta/v1/chat/completions", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${HF_TOKEN}` },
+                body: JSON.stringify({
+                    model: "HuggingFaceH4/zephyr-7b-beta",
+                    messages: [
+                        { role: "system", content: "You are Krishak AI, an expert agricultural assistant created by EaseLifeConnect. Answer concisely in 1-2 short paragraphs." },
+                        { role: "user", content: query }
+                    ],
+                    max_tokens: 300
+                })
+            });
+
+            const data = await res.json();
+            typing.remove();
+
+            if (data.choices && data.choices[0].message && data.choices[0].message.content) {
+                let formatted = data.choices[0].message.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+                appendBubble('bot', formatted);
+            } else {
+                appendBubble('bot', "Connection failed. Please check your HF API key.");
+            }
+        } catch(e) {
+            typing.remove();
+            appendBubble('bot', "Network error. Please try again.");
+        }
+    }
+</script>
+</body>
+</html>
