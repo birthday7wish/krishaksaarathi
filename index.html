@@ -441,38 +441,44 @@
 
         runAnalysisBtn.innerHTML = `Generating Report...`;
         aiReportBox.style.display = 'block';
-        aiReportBox.innerHTML = "Querying agronomy neural network...";
+        aiReportBox.innerHTML = "Processing local agronomy algorithms...";
 
-        // Pack the prompt safely for a web URL
-        const promptText = `You are an expert agronomist. Farm conditions: Temp ${liveData.t}°C, Air Humidity ${liveData.h}%, Soil Moisture ${liveData.s}%, Rain Intensity ${liveData.r}%. Write a concise 2 sentence recommendation on irrigation or crop safety based ONLY on this data.`;
-        const encodedPrompt = encodeURIComponent(promptText);
+        // Simulate AI thinking time for user experience
+        setTimeout(() => {
+            let t = liveData.t;
+            let h = liveData.h;
+            let s = liveData.s;
+            let r = liveData.r;
 
-        try {
-            // Using a completely free, keyless, CORS-friendly AI endpoint
-            const res = await fetch(`https://text.pollinations.ai/${encodedPrompt}`);
+            let report = "";
 
-            if (!res.ok) {
-                throw new Error(`HTTP Error ${res.status}`);
-            }
-
-            // This API returns raw text, not JSON
-            const aiText = await res.text();
-            
-            if (aiText) {
-                // Format bold text
-                let formatted = aiText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                aiReportBox.innerHTML = `<strong>🌱 Live Action Plan:</strong><br><br>${formatted}`;
+            // 1. Irrigation Logic Engine
+            if (r > 20) {
+                report += "🌧️ <strong>Irrigation:</strong> Natural rainfall detected. Halt all manual watering to prevent root rot.<br><br>";
+            } else if (s < 40) {
+                report += "💧 <strong>Irrigation:</strong> Soil moisture is critically low. It is highly recommended to activate the irrigation pump.<br><br>";
+            } else if (s > 85) {
+                report += "🛑 <strong>Irrigation:</strong> Soil is waterlogged. Keep pumps off and ensure proper field drainage.<br><br>";
             } else {
-                aiReportBox.innerHTML = "⚠️ AI server returned an empty response. Try again.";
+                report += "✅ <strong>Irrigation:</strong> Soil moisture is optimal. No watering needed right now.<br><br>";
             }
-        } catch(e) { 
-            console.error("Full Error:", e);
-            aiReportBox.innerHTML = `⚠️ <strong>Connection Failed: ${e.message}</strong><br><br><span style="font-size:12px; color:var(--text-muted);">If this still fails, your computer's Antivirus (like Kaspersky/Bitdefender) or your ISP is actively blocking outbound API connections from your browser.</span>`; 
-        }
-        
-        runAnalysisBtn.innerHTML = `Update Analysis`;
-    });
 
+            // 2. Crop Safety & Disease Logic Engine
+            if (t > 35) {
+                report += "🔥 <strong>Crop Safety:</strong> Severe heat stress detected. Consider deploying shade nets and keep soil moist to cool the roots.";
+            } else if (t < 10) {
+                report += "❄️ <strong>Crop Safety:</strong> Frost risk! Consider using row covers to protect sensitive crops.";
+            } else if (h > 80 && t > 25) {
+                report += "🦠 <strong>Disease Risk:</strong> High humidity and warm temperatures create an ideal environment for fungal growth (like Blight). Monitor leaves closely using the Leaf Doctor.";
+            } else {
+                report += "🌿 <strong>Crop Safety:</strong> Climate conditions are stable and within healthy parameters.";
+            }
+
+            aiReportBox.innerHTML = `<strong>🌱 Live Action Plan:</strong><br><br>${report}`;
+            runAnalysisBtn.innerHTML = `Update Analysis`;
+            
+        }, 800); // 800ms delay to simulate processing
+    });
     /* =========================================
        4. TENSORFLOW.JS LEAF DOCTOR
        ========================================= */
