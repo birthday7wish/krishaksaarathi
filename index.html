@@ -443,20 +443,23 @@
         aiReportBox.style.display = 'block';
         aiReportBox.innerHTML = "Querying agronomy neural network...";
 
-        const prompt = `Farm conditions: Temp ${liveData.t}°C, Air Humidity ${liveData.h}%, Soil Moisture ${liveData.s}%, Rain Intensity ${liveData.r}%. As an expert agronomist, write a concise 2-3 sentence recommendation on irrigation or crop safety based ONLY on this exact data.`;
+        // Using Mistral-Instruct format for the prompt
+        const prompt = `[INST] You are an expert agronomist. Farm conditions: Temp ${liveData.t}°C, Air Humidity ${liveData.h}%, Soil Moisture ${liveData.s}%, Rain Intensity ${liveData.r}%. Write a concise 2 sentence recommendation on irrigation or crop safety based ONLY on this exact data. [/INST]`;
 
         try {
-            // Swapped to Microsoft Phi-3, a highly reliable and fast free model
-            const res = await fetch("https://api-inference.huggingface.co/models/microsoft/Phi-3-mini-4k-instruct/v1/chat/completions", {
+            // Using the raw inference endpoint (Bypasses CORS restrictions on free accounts)
+            const res = await fetch("https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3", {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json', 
                     'Authorization': `Bearer ${HF_TOKEN}` 
                 },
                 body: JSON.stringify({
-                    model: "microsoft/Phi-3-mini-4k-instruct",
-                    messages: [ { role: "user", content: prompt } ],
-                    max_tokens: 150
+                    inputs: prompt,
+                    parameters: { 
+                        max_new_tokens: 150,
+                        return_full_text: false // Prevents the AI from repeating your question
+                    }
                 })
             });
 
@@ -466,16 +469,17 @@
             }
 
             const data = await res.json();
-            if (data.choices && data.choices[0].message) {
-                let formatted = data.choices[0].message.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // The raw API returns data differently than the chat API
+            if (data && data[0] && data[0].generated_text) {
+                let formatted = data[0].generated_text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
                 aiReportBox.innerHTML = `<strong>🌱 Live Action Plan:</strong><br><br>${formatted}`;
             } else {
                 aiReportBox.innerHTML = "⚠️ AI server returned an empty response. Try again in a few seconds.";
             }
         } catch(e) { 
-            // THIS WILL NOW PRINT THE EXACT ERROR ON YOUR SCREEN
             console.error("Full Error:", e);
-            aiReportBox.innerHTML = `⚠️ <strong>Connection Failed:</strong> ${e.message}<br><br><span style="font-size:12px;">If this says "Failed to fetch", your browser is blocking the request. You must open this file using a Local Server (like VS Code Live Server) instead of double-clicking the HTML file.</span>`; 
+            aiReportBox.innerHTML = `⚠️ <strong>Connection Failed:</strong> ${e.message}`; 
         }
         
         runAnalysisBtn.innerHTML = `Update Analysis`;
