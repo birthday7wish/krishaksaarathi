@@ -1,550 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KrishakSaarathi - Desktop & Mobile</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Pump Control</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background-color: var(--card-bg);
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    h2 { margin-bottom: 5px; font-weight: 600; }
+    .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 30px; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background-color: rgba(148, 163, 184, 0.2);
+      color: var(--text-muted);
+      margin-bottom: 25px;
+      transition: all 0.3s ease;
+    }
+    .status-badge.connected { background-color: rgba(16, 185, 129, 0.2); color: var(--success); }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 15px 25px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    #connectBtn { background-color: var(--primary); color: white; }
+    #connectBtn:hover { background-color: var(--primary-hover); transform: translateY(-2px); }
+
+    #voiceBtn { background-color: #334155; color: white; }
+    #voiceBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    #voiceBtn:not(:disabled):hover { background-color: #475569; transform: translateY(-2px); }
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    /* Animation for when microphone is listening */
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .listening { background-color: var(--danger) !important; animation: pulse 1.5s infinite; }
 
-    <style>
-        :root {
-            /* Premium White Theme */
-            --bg-color: #FFFFFF;
-            --primary: #0F5132;
-            --text-main: #1A2F24;
-            --text-muted: #5C7766;
-            
-            /* Sensor Colors */
-            --color-temp: #FF7675;
-            --color-hum: #74B9FF;
-            --color-soil: #E17055;
-            --color-rain: #A29BFE;
-            --color-motion: #00B894;
-            
-            /* UI Elements */
-            --card-bg: #FFFFFF;
-            --radius-xl: 24px;
-            --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.05);
-            --shadow-hover: 0 20px 40px rgba(0, 0, 0, 0.1);
-            --border-light: 1px solid rgba(0, 0, 0, 0.05);
-            --transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
+    .terminal {
+      background-color: #000;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      font-family: monospace;
+      color: var(--success);
+      font-size: 0.85rem;
+      text-align: left;
+      min-height: 60px;
+      border: 1px solid #333;
+    }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Inter', sans-serif;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
-            overflow-x: hidden;
-            background-image: radial-gradient(circle at 15% 50%, rgba(116, 185, 255, 0.05), transparent 25%),
-                              radial-gradient(circle at 85% 30%, rgba(0, 184, 148, 0.05), transparent 25%);
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 1200px; /* Desktop width */
-            padding: 0 20px 100px 20px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* --- Header & Navigation --- */
-        header {
-            padding: 24px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: var(--border-light);
-            margin-bottom: 30px;
-        }
-        
-        .brand-title { font-size: 26px; font-weight: 800; color: var(--primary); display: flex; align-items: center; gap: 8px; }
-        .animated-leaf { width: 24px; height: 24px; fill: var(--color-motion); animation: float 3s ease-in-out infinite; }
-        .subtitle { font-size: 12px; color: var(--text-muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px;}
-
-        @keyframes float { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-4px) rotate(8deg); } }
-
-        .header-actions { display: flex; gap: 15px; align-items: center; }
-        
-        .action-btn { 
-            display: flex; align-items: center; gap: 8px;
-            padding: 10px 20px; border-radius: 30px; font-weight: 600; font-size: 14px;
-            cursor: pointer; transition: var(--transition); border: none;
-        }
-        .btn-connect { background: var(--primary); color: white; box-shadow: 0 8px 20px rgba(15, 81, 50, 0.2); }
-        .btn-connect:hover { transform: translateY(-2px); box-shadow: 0 12px 25px rgba(15, 81, 50, 0.3); }
-        .btn-disconnect { background: #ffeaa7; color: #d63031; display: none; }
-        
-        /* Desktop Navigation */
-        .desktop-nav { display: none; gap: 20px; }
-        .nav-link { font-weight: 600; color: var(--text-muted); cursor: pointer; padding: 8px 16px; border-radius: 20px; transition: var(--transition); }
-        .nav-link:hover, .nav-link.active { background: rgba(0, 184, 148, 0.1); color: var(--primary); }
-
-        /* --- Views --- */
-        .view { display: none; animation: fadeIn 0.4s ease; }
-        .view.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* --- Dashboard Grid (Responsive) --- */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
-        }
-
-        .sensor-card {
-            background: var(--card-bg);
-            border-radius: var(--radius-xl);
-            padding: 25px;
-            box-shadow: var(--shadow-soft);
-            border: var(--border-light);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: var(--transition);
-        }
-        .sensor-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-hover); }
-
-        /* --- Half Circle Gauges --- */
-        .gauge-container { width: 180px; height: 90px; position: relative; margin-bottom: 15px; }
-        .gauge-svg { width: 100%; height: 100%; overflow: visible; }
-        .gauge-bg { fill: none; stroke: #F1F2F6; stroke-width: 12; stroke-linecap: round; }
-        .gauge-val { fill: none; stroke-width: 12; stroke-linecap: round; stroke-dasharray: 125.66; stroke-dashoffset: 125.66; transition: stroke-dashoffset 1.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-        
-        .gauge-icon { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 36px; height: 36px; padding: 6px; border-radius: 50%; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .gauge-icon svg { width: 100%; height: 100%; }
-
-        .sensor-value { font-size: 32px; font-weight: 800; color: var(--text-main); margin-top: 15px; }
-        .sensor-label { font-size: 13px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; }
-
-        /* Motion & Control Cards */
-        .status-card { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 25px; border-radius: var(--radius-xl); box-shadow: var(--shadow-soft); border: var(--border-light); margin-bottom: 25px; }
-        .status-info h4 { font-size: 18px; color: var(--text-main); margin-bottom: 5px; }
-        .status-info p { font-size: 13px; color: var(--text-muted); }
-
-        /* Toggle Switch */
-        .toggle-switch { position: relative; width: 60px; height: 32px; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #DFE6E9; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        input:checked + .slider { background-color: var(--color-motion); }
-        input:checked + .slider:before { transform: translateX(28px); }
-
-        /* --- AI Farm Analysis & Leaf Doctor --- */
-        .ai-btn { background: linear-gradient(135deg, var(--primary), var(--color-motion)); color: white; border: none; padding: 18px; border-radius: var(--radius-xl); font-size: 16px; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 10px 25px rgba(0, 184, 148, 0.3); width: 100%; transition: var(--transition); }
-        .ai-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 35px rgba(0, 184, 148, 0.4); }
-        .ai-btn svg { width: 24px; height: 24px; fill: white; }
-
-        .ai-result-box { margin-top: 20px; padding: 20px; background: #F8F9FA; border-radius: var(--radius-xl); border: var(--border-light); font-size: 15px; line-height: 1.6; display: none; }
-
-        .upload-area { border: 2px dashed var(--color-motion); border-radius: var(--radius-xl); padding: 50px 20px; background: rgba(0, 184, 148, 0.02); text-align: center; cursor: pointer; transition: var(--transition); margin-top: 20px; position: relative; }
-        .upload-area:hover { background: rgba(0, 184, 148, 0.05); }
-        .upload-area input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-
-        /* --- Mobile Bottom Navigation --- */
-        .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card-bg); border-top: var(--border-light); padding: 12px 20px 20px 20px; justify-content: space-around; z-index: 100; box-shadow: 0 -5px 20px rgba(0,0,0,0.03); }
-        .bottom-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); cursor: pointer; font-size: 11px; font-weight: 600; }
-        .bottom-nav-item svg { width: 24px; height: 24px; fill: currentColor; }
-        .bottom-nav-item.active { color: var(--primary); }
-
-        /* Responsive Breakpoints */
-        @media (min-width: 768px) {
-            .desktop-nav { display: flex; }
-        }
-        @media (max-width: 767px) {
-            .bottom-nav { display: flex; }
-            .header-actions .btn-connect span { display: none; }
-        }
-    </style>
+    .commands-box {
+      margin-top: 30px;
+      background-color: rgba(255,255,255,0.03);
+      padding: 15px;
+      border-radius: 12px;
+      text-align: left;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .commands-box h4 { margin-bottom: 10px; color: var(--primary); font-size: 0.95rem;}
+    .commands-box ul { list-style: none; font-size: 0.85rem; color: var(--text-muted); }
+    .commands-box li { margin-bottom: 5px; padding-left: 15px; position: relative; }
+    .commands-box li::before { content: "•"; position: absolute; left: 0; color: var(--primary); }
+    .highlight { color: var(--text-main); font-weight: 600; }
+  </style>
 </head>
 <body>
 
-<div class="app-container">
+  <div class="container">
+    <h2>💧 Smart Pump</h2>
+    <p class="subtitle">BLE Voice Control Interface</p>
+
+    <div id="statusBadge" class="status-badge">Bluetooth Disconnected</div>
+
+    <button id="connectBtn">
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+      Connect to ESP32
+    </button>
+
+    <button id="voiceBtn" disabled>
+      🎤 Start Voice Command
+    </button>
+
+    <div class="terminal" id="terminalLog">
+      > Awaiting connection...
+    </div>
+
+    <div class="commands-box">
+      <h4>Supported Commands</h4>
+      <ul>
+        <li><span class="highlight">"Turn on"</span> or <span class="highlight">"Start"</span> (Activates Pump)</li>
+        <li><span class="highlight">"Turn off"</span> or <span class="highlight">"Stop"</span> (Deactivates Pump)</li>
+        <li><span class="highlight">"Pump on / Pump off"</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const serviceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const characteristicUuid = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let pumpCharacteristic;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const statusBadge = document.getElementById('statusBadge');
+    const terminalLog = document.getElementById('terminalLog');
+
+    function logToTerminal(message) {
+      terminalLog.innerHTML = `> ${message}`;
+    }
+
+    // Bluetooth Setup
+    connectBtn.addEventListener('click', async () => {
+      try {
+        logToTerminal('Scanning for ESP32_Pump...');
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'ESP32_Pump' }],
+          optionalServices: [serviceUuid]
+        });
+        
+        device.addEventListener('gattserverdisconnected', () => {
+          statusBadge.className = 'status-badge';
+          statusBadge.innerText = 'Bluetooth Disconnected';
+          voiceBtn.disabled = true;
+          logToTerminal('Device disconnected.');
+        });
+
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(serviceUuid);
+        pumpCharacteristic = await service.getCharacteristic(characteristicUuid);
+        
+        statusBadge.className = 'status-badge connected';
+        statusBadge.innerText = 'Bluetooth Connected';
+        voiceBtn.disabled = false;
+        connectBtn.style.display = 'none'; // Hide connect button once connected
+        logToTerminal('Connected successfully. Ready.');
+      } catch (error) {
+        logToTerminal(`Error: ${error.message || error}`);
+      }
+    });
+
+    // Speech Recognition Setup
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
-    <header>
-        <div>
-            <div class="brand-title">KrishakSaarathi <svg class="animated-leaf" viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,14 7,14C10,9 15,9.5 17,8Z"/></svg></div>
-            <div class="subtitle" id="statusSubtitle">System Disconnected</div>
-        </div>
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      
+      voiceBtn.addEventListener('click', () => {
+        recognition.start();
+      });
+
+      recognition.onstart = () => {
+        voiceBtn.classList.add('listening');
+        voiceBtn.innerHTML = '🛑 Listening...';
+        logToTerminal('Listening for voice commands...');
+      };
+
+      recognition.onend = () => {
+        voiceBtn.classList.remove('listening');
+        voiceBtn.innerHTML = '🎤 Start Voice Command';
+      };
+
+      recognition.onresult = async (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase().trim();
+        logToTerminal(`Heard: "${transcript}"`);
         
-        <div class="desktop-nav">
-            <div class="nav-link active" onclick="switchView('home', this, true)">Dashboard</div>
-            <div class="nav-link" onclick="switchView('insights', this, true)">AI Analysis</div>
-            <div class="nav-link" onclick="switchView('doctor', this, true)">Leaf Doctor</div>
-        </div>
+        if (!pumpCharacteristic) return;
 
-        <div class="header-actions">
-            <button class="action-btn btn-connect" id="btnConnect">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M17.71,7.71L12,2V11.58L6.41,6L5,7.41L10.59,13L5,18.59L6.41,20L12,14.41V24L17.71,18.29L13.41,14L17.71,9.71V7.71M14,5.83L15.88,7.71L14,9.58V5.83M15.88,18.29L14,20.17V16.42L15.88,18.29Z"/></svg>
-                <span>Connect</span>
-            </button>
-            <button class="action-btn btn-disconnect" id="btnDisconnect">Disconnect</button>
-        </div>
-    </header>
-
-    <main id="view-home" class="view active">
+        let command = "";
         
-        <div class="dashboard-grid">
-            <div class="sensor-card">
-                <div class="gauge-container">
-                    <svg class="gauge-svg" viewBox="0 0 100 50">
-                        <path class="gauge-bg" d="M 10 50 A 40 40 0 0 1 90 50" />
-                        <path class="gauge-val" id="ringTemp" style="stroke: var(--color-temp);" d="M 10 50 A 40 40 0 0 1 90 50" />
-                    </svg>
-                    <div class="gauge-icon"><svg style="fill: var(--color-temp);" viewBox="0 0 24 24"><path d="M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z"/></svg></div>
-                </div>
-                <div class="sensor-value"><span id="valTemp">--</span>°C</div>
-                <div class="sensor-label">Air Temperature</div>
-            </div>
-            
-            <div class="sensor-card">
-                <div class="gauge-container">
-                    <svg class="gauge-svg" viewBox="0 0 100 50">
-                        <path class="gauge-bg" d="M 10 50 A 40 40 0 0 1 90 50" />
-                        <path class="gauge-val" id="ringHum" style="stroke: var(--color-hum);" d="M 10 50 A 40 40 0 0 1 90 50" />
-                    </svg>
-                    <div class="gauge-icon"><svg style="fill: var(--color-hum);" viewBox="0 0 24 24"><path d="M12 20A6 6 0 0 1 6 14C6 10 12 3.25 12 3.25S18 10 18 14A6 6 0 0 1 12 20Z"/></svg></div>
-                </div>
-                <div class="sensor-value"><span id="valHum">--</span>%</div>
-                <div class="sensor-label">Air Humidity</div>
-            </div>
+        // Upgraded command parsing
+        if (transcript.includes('on') || transcript.includes('start')) {
+          command = "on";
+        } else if (transcript.includes('off') || transcript.includes('stop')) {
+          command = "off";
+        }
 
-            <div class="sensor-card">
-                <div class="gauge-container">
-                    <svg class="gauge-svg" viewBox="0 0 100 50">
-                        <path class="gauge-bg" d="M 10 50 A 40 40 0 0 1 90 50" />
-                        <path class="gauge-val" id="ringSoil" style="stroke: var(--color-soil);" d="M 10 50 A 40 40 0 0 1 90 50" />
-                    </svg>
-                    <div class="gauge-icon"><svg style="fill: var(--color-soil);" viewBox="0 0 24 24"><path d="M11 20H8V22H11V20M13 22H16V20H13V22M4 7C4 11.23 7.15 14.73 11.23 15.34C11 16.14 11.45 16.96 12.25 17.21C12.95 17.43 13.72 17.13 14.07 16.5C17.65 15.28 20 11.9 20 8C20 4.14 16.65 1 12.5 1S5 4.14 5 8V8.42C4.38 7.9 4 7.2 4 6.42V7Z"/></svg></div>
-                </div>
-                <div class="sensor-value"><span id="valSoil">--</span>%</div>
-                <div class="sensor-label">Soil Moisture</div>
-            </div>
-
-            <div class="sensor-card">
-                <div class="gauge-container">
-                    <svg class="gauge-svg" viewBox="0 0 100 50">
-                        <path class="gauge-bg" d="M 10 50 A 40 40 0 0 1 90 50" />
-                        <path class="gauge-val" id="ringRain" style="stroke: var(--color-rain);" d="M 10 50 A 40 40 0 0 1 90 50" />
-                    </svg>
-                    <div class="gauge-icon"><svg style="fill: var(--color-rain);" viewBox="0 0 24 24"><path d="M9,20A1,1 0 0,1 8,21A1,1 0 0,1 7,20A1,1 0 0,1 8,19A1,1 0 0,1 9,20M13,20A1,1 0 0,1 12,21A1,1 0 0,1 11,20A1,1 0 0,1 12,19A1,1 0 0,1 13,20M17,20A1,1 0 0,1 16,21A1,1 0 0,1 15,20A1,1 0 0,1 16,19A1,1 0 0,1 17,20M15.5,17H8.5L8.33,16.66C7.5,15 7.5,13 8.33,11.34L8.5,11H15.5L15.67,11.34C16.5,13 16.5,15 15.67,16.66L15.5,17Z"/></svg></div>
-                </div>
-                <div class="sensor-value"><span id="valRain">--</span>%</div>
-                <div class="sensor-label">Rain Intensity</div>
-            </div>
-        </div>
-
-        <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
-            <div class="status-card">
-                <div class="status-info">
-                    <h4>Field Radar (PIR)</h4>
-                    <p id="motStatusTxt">No activity detected.</p>
-                </div>
-                <div id="motIndicator" style="width: 20px; height: 20px; border-radius: 50%; background: #DFE6E9;"></div>
-            </div>
-
-            <div class="status-card">
-                <div class="status-info">
-                    <h4>Irrigation Pump</h4>
-                    <p id="pumpStatusTxt">Hardware disconnected.</p>
-                </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="pumpToggle" disabled>
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>
-    </main>
-
-    <main id="view-insights" class="view">
-        <div class="sensor-card" style="align-items: stretch; max-width: 800px; margin: 0 auto;">
-            <h2 style="color: var(--primary); margin-bottom: 10px;">AI Farm Analysis</h2>
-            <p style="color: var(--text-muted); margin-bottom: 25px;">Get an instant agronomic assessment based on live sensor data (Temperature, Humidity, Soil, and Rain).</p>
-            
-            <button class="ai-btn" id="runAnalysisBtn">
-                <svg viewBox="0 0 24 24"><path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg>
-                Generate Farm Report
-            </button>
-            <div class="ai-result-box" id="aiReportBox"></div>
-        </div>
-    </main>
-
-    <main id="view-doctor" class="view">
-        <div class="sensor-card" style="align-items: stretch; max-width: 800px; margin: 0 auto;">
-            <h2 style="color: var(--primary); margin-bottom: 10px;">AI Leaf Doctor</h2>
-            <p style="color: var(--text-muted);">Identify diseases instantly via computer vision.</p>
-            
-            <div class="upload-area" id="uploadArea">
-                <svg viewBox="0 0 24 24" style="width: 48px; height: 48px; fill: var(--color-motion);"><path d="M4 4H20V20H4V4M6 6V18H18V6H6M13.5 11.5L16.5 15.5H7.5L10.5 11.5L12 13.5L13.5 11.5Z"/></svg>
-                <div style="font-weight: 700; color: var(--primary); margin-top: 15px; font-size: 18px;">Click or Tap to Scan Leaf</div>
-                <input type="file" accept="image/*" capture="environment" id="leafInput">
-            </div>
-
-            <img id="previewImage" style="display:none; width: 100%; max-height: 400px; object-fit: contain; border-radius: 16px; margin-top: 20px;" crossorigin="anonymous">
-            <div class="ai-result-box" id="aiDoctorResult"></div>
-            <button class="ai-btn" id="resetScanBtn" style="display:none; margin-top: 20px;" onclick="resetScanner()">Scan Another Leaf</button>
-        </div>
-    </main>
-
-    <nav class="bottom-nav">
-        <div class="bottom-nav-item active" onclick="switchView('home', this, false)">
-            <svg viewBox="0 0 24 24"><path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>
-            <span>Home</span>
-        </div>
-        <div class="bottom-nav-item" onclick="switchView('insights', this, false)">
-            <svg viewBox="0 0 24 24"><path d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H3L8.97,8.5L16,11.78Z"/></svg>
-            <span>Insights</span>
-        </div>
-        <div class="bottom-nav-item" onclick="switchView('doctor', this, false)">
-            <svg viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,14 7,14C10,9 15,9.5 17,8Z"/></svg>
-            <span>Doctor</span>
-        </div>
-    </nav>
-</div>
-
-<script>
-    // 🛑 PASTE YOUR API KEYS HERE 🛑
-    const HF_TOKEN = "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";
-    const TF_MODEL_URL = "YOUR_TEACHABLE_MACHINE_LINK_HERE/";
-
-    /* =========================================
-       1. NAVIGATION LOGIC
-       ========================================= */
-    function switchView(viewId, element, isDesktop) {
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.getElementById(`view-${viewId}`).classList.add('active');
-        
-        if (isDesktop) {
-            document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+        if (command) {
+          try {
+            const encoder = new TextEncoder();
+            await pumpCharacteristic.writeValue(encoder.encode(command));
+            logToTerminal(`Success! Pump turned <strong>${command.toUpperCase()}</strong>`);
+          } catch (error) {
+             logToTerminal(`Failed to send data: ${error}`);
+          }
         } else {
-            document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+          setTimeout(() => {
+            logToTerminal(`Unrecognized command. Try "start" or "stop".`);
+          }, 1500);
         }
-        element.classList.add('active');
-        window.scrollTo(0,0);
+      };
+    } else {
+      logToTerminal('Error: Web Speech API is not supported in this browser.');
     }
-
-    /* =========================================
-       2. BLUETOOTH & GAUGE LOGIC
-       ========================================= */
-    let bleDevice, bleCharacteristic;
-    const btnConnect = document.getElementById('btnConnect');
-    const btnDisconnect = document.getElementById('btnDisconnect');
-    const statusSubtitle = document.getElementById('statusSubtitle');
-    const pumpToggle = document.getElementById('pumpToggle');
-    const pumpStatusTxt = document.getElementById('pumpStatusTxt');
-    
-    // Live Data Storage for AI
-    let liveData = { t: 0, h: 0, s: 0, r: 0 };
-
-    const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-    const characteristicUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
-    const GAUGE_MAX = 125.66;
-
-    function updateGauge(id, value, maxVal) {
-        const ring = document.getElementById(id);
-        const text = document.getElementById(id.replace('ring', 'val'));
-        let percentage = Math.max(0, Math.min(100, (value / maxVal) * 100));
-        ring.style.strokeDashoffset = GAUGE_MAX - (percentage / 100) * GAUGE_MAX;
-        text.innerText = value.toFixed(1);
-    }
-
-    btnConnect.addEventListener('click', async () => {
-        try {
-            bleDevice = await navigator.bluetooth.requestDevice({ filters: [{ name: 'KrishakSaarathi_BLE' }], optionalServices: [serviceUuid] });
-            
-            bleDevice.addEventListener('gattserverdisconnected', handleDisconnectUI);
-
-            const server = await bleDevice.gatt.connect();
-            const service = await server.getPrimaryService(serviceUuid);
-            bleCharacteristic = await service.getCharacteristic(characteristicUuid);
-            
-            btnConnect.style.display = 'none';
-            btnDisconnect.style.display = 'flex';
-            statusSubtitle.innerText = "Hardware Synced & Active";
-            pumpToggle.disabled = false;
-            pumpStatusTxt.innerText = "Pump Ready.";
-
-            await bleCharacteristic.startNotifications();
-            bleCharacteristic.addEventListener('characteristicvaluechanged', (e) => {
-                // Expected JSON: {"t": 25.5, "h": 60, "m": 0, "s": 45, "r": 10}
-                const data = JSON.parse(new TextDecoder('utf-8').decode(e.target.value));
-                liveData = data;
-                
-                updateGauge('ringTemp', data.t, 50);   // Max Temp 50C
-                updateGauge('ringHum', data.h, 100);   // Max Hum 100%
-                updateGauge('ringSoil', data.s, 100);  // Max Soil 100%
-                updateGauge('ringRain', data.r, 100);  // Max Rain 100%
-
-                // Motion
-                const motInd = document.getElementById('motIndicator');
-                const motTxt = document.getElementById('motStatusTxt');
-                if(data.m === 1) {
-                    motInd.style.background = 'var(--color-temp)';
-                    motInd.style.boxShadow = '0 0 15px var(--color-temp)';
-                    motTxt.innerText = "⚠️ Intrusion Detected!";
-                    motTxt.style.color = 'var(--color-temp)';
-                } else {
-                    motInd.style.background = 'var(--color-motion)';
-                    motInd.style.boxShadow = 'none';
-                    motTxt.innerText = "Perimeter Secure.";
-                    motTxt.style.color = 'var(--text-muted)';
-                }
-            });
-        } catch (error) { console.error("BLE Connect Error:", error); }
-    });
-
-    btnDisconnect.addEventListener('click', () => {
-        if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
-    });
-
-    function handleDisconnectUI() {
-        btnConnect.style.display = 'flex';
-        btnDisconnect.style.display = 'none';
-        statusSubtitle.innerText = "System Disconnected";
-        pumpToggle.disabled = true;
-        pumpStatusTxt.innerText = "Hardware disconnected.";
-        updateGauge('ringTemp', 0, 50);
-        updateGauge('ringHum', 0, 100);
-        updateGauge('ringSoil', 0, 100);
-        updateGauge('ringRain', 0, 100);
-        document.getElementById('motIndicator').style.background = '#DFE6E9';
-    }
-
-    pumpToggle.addEventListener('change', async (e) => {
-        if (!bleCharacteristic) return;
-        const command = e.target.checked ? "PUMP_ON" : "PUMP_OFF";
-        pumpStatusTxt.innerText = e.target.checked ? "Pump is RUNNING" : "Pump is OFF";
-        try { await bleCharacteristic.writeValue(new TextEncoder().encode(command)); } 
-        catch (err) { console.error("Write error:", err); }
-    });
-
-    /* =========================================
-       3. AI FARM ANALYSIS (Hugging Face)
-       ========================================= */
-    const runAnalysisBtn = document.getElementById('runAnalysisBtn');
-    const aiReportBox = document.getElementById('aiReportBox');
-
-   runAnalysisBtn.addEventListener('click', async () => {
-        if(!bleDevice || !bleDevice.gatt.connected) {
-            aiReportBox.style.display = 'block';
-            aiReportBox.innerHTML = "⚠️ <strong>Hardware Offline:</strong> Please connect to the ESP32 to gather live telemetry.";
-            return;
-        }
-
-        runAnalysisBtn.innerHTML = `Generating Report...`;
-        aiReportBox.style.display = 'block';
-        aiReportBox.innerHTML = "Processing local agronomy algorithms...";
-
-        // Simulate AI thinking time for user experience
-        setTimeout(() => {
-            let t = liveData.t;
-            let h = liveData.h;
-            let s = liveData.s;
-            let r = liveData.r;
-
-            let report = "";
-
-            // 1. Irrigation Logic Engine
-            if (r > 20) {
-                report += "🌧️ <strong>Irrigation:</strong> Natural rainfall detected. Halt all manual watering to prevent root rot.<br><br>";
-            } else if (s < 40) {
-                report += "💧 <strong>Irrigation:</strong> Soil moisture is critically low. It is highly recommended to activate the irrigation pump.<br><br>";
-            } else if (s > 85) {
-                report += "🛑 <strong>Irrigation:</strong> Soil is waterlogged. Keep pumps off and ensure proper field drainage.<br><br>";
-            } else {
-                report += "✅ <strong>Irrigation:</strong> Soil moisture is optimal. No watering needed right now.<br><br>";
-            }
-
-            // 2. Crop Safety & Disease Logic Engine
-            if (t > 35) {
-                report += "🔥 <strong>Crop Safety:</strong> Severe heat stress detected. Consider deploying shade nets and keep soil moist to cool the roots.";
-            } else if (t < 10) {
-                report += "❄️ <strong>Crop Safety:</strong> Frost risk! Consider using row covers to protect sensitive crops.";
-            } else if (h > 80 && t > 25) {
-                report += "🦠 <strong>Disease Risk:</strong> High humidity and warm temperatures create an ideal environment for fungal growth (like Blight). Monitor leaves closely using the Leaf Doctor.";
-            } else {
-                report += "🌿 <strong>Crop Safety:</strong> Climate conditions are stable and within healthy parameters.";
-            }
-
-            aiReportBox.innerHTML = `<strong>🌱 Live Action Plan:</strong><br><br>${report}`;
-            runAnalysisBtn.innerHTML = `Update Analysis`;
-            
-        }, 800); // 800ms delay to simulate processing
-    });
-    /* =========================================
-       4. TENSORFLOW.JS LEAF DOCTOR
-       ========================================= */
-    let tfModel, maxPredictions;
-    const leafInput = document.getElementById('leafInput');
-    const previewImage = document.getElementById('previewImage');
-    const uploadArea = document.getElementById('uploadArea');
-    const aiDoctorResult = document.getElementById('aiDoctorResult');
-    const resetScanBtn = document.getElementById('resetScanBtn');
-
-    async function initTFModel() {
-        try {
-            tfModel = await tmImage.load(TF_MODEL_URL + "model.json", TF_MODEL_URL + "metadata.json");
-            maxPredictions = tfModel.getTotalClasses();
-        } catch (err) { console.error("TF Model Load Error."); }
-    }
-    initTFModel();
-
-    leafInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                previewImage.src = event.target.result;
-                uploadArea.style.display = 'none';
-                previewImage.style.display = 'block';
-                aiDoctorResult.style.display = 'block';
-                aiDoctorResult.innerHTML = "<strong>Scanning leaf tissue architecture...</strong>";
-                setTimeout(runLeafPrediction, 1000); 
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-
-    async function runLeafPrediction() {
-        if(!tfModel) { aiDoctorResult.innerHTML = "⚠️ Model initialization failed. Check URL."; return; }
-        const prediction = await tfModel.predict(previewImage);
-        let bestClass = ""; let highestProb = 0;
-        
-        for (let i = 0; i < maxPredictions; i++) {
-            if (prediction[i].probability > highestProb) {
-                highestProb = prediction[i].probability;
-                bestClass = prediction[i].className;
-            }
-        }
-
-        const confidence = (highestProb * 100).toFixed(1);
-        
-        if (bestClass.toLowerCase().includes("healthy")) {
-            aiDoctorResult.style.borderLeft = "6px solid var(--color-motion)";
-            aiDoctorResult.innerHTML = `<strong>✅ ${bestClass}</strong><br>Confidence: ${confidence}%<br><br>The leaf exhibits healthy cellular structure. Maintain current care.`;
-        } else {
-            aiDoctorResult.style.borderLeft = "6px solid var(--color-temp)";
-            aiDoctorResult.innerHTML = `<strong>⚠️ ${bestClass}</strong><br>Confidence: ${confidence}%<br><br>Pathological signs detected. Isolate plant and apply recommended antifungal/antibacterial agents immediately.`;
-        }
-        resetScanBtn.style.display = "block";
-    }
-
-    function resetScanner() {
-        leafInput.value = '';
-        previewImage.style.display = 'none';
-        uploadArea.style.display = 'block';
-        aiDoctorResult.style.display = 'none';
-        resetScanBtn.style.display = 'none';
-        aiDoctorResult.style.borderLeft = "none";
-    }
-</script>
+  </script>
 </body>
 </html>
